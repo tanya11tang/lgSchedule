@@ -1,0 +1,46 @@
+name: Publish latest carousel
+
+on:
+  push:
+    branches: [main]
+    paths: ['site/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: carousel-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify latest page and prepare clean deployment
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import shutil
+          source = Path('site/index.html')
+          html = source.read_text(encoding='utf-8-sig')
+          if '<html' not in html.lower() or '</html>' not in html.lower() or '__DATA__' in html:
+              raise SystemExit('Missing or incomplete carousel HTML')
+          Path('_published').mkdir()
+          shutil.copyfile(source, '_published/index.html')
+          Path('_published/.nojekyll').touch()
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _published
+      - name: Publish Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
